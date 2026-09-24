@@ -48,8 +48,20 @@ fn terminalSize() struct { rows: usize, cols: usize } {
 }
 
 const Mode = enum {
+    normal,
     insert,
     command,
+};
+
+const EditKind = enum {
+    insert,
+    delete,
+};
+
+const Edit = struct {
+    kind: EditKind,
+    pos: usize,
+    byte: u8,
 };
 
 const Editor = struct {
@@ -67,6 +79,13 @@ const Editor = struct {
     filename_len: usize = 0,
 
     should_quit: bool = false,
+
+    undo_stack: [256]Edit = undefined,
+    undo_len: usize = 0,
+
+    redo_stack: [256]Edit = undefined,
+    redo_len: usize = 0,
+    pending_g: bool = false,
 
     fn lineStart(self: *const Editor, pos: usize) usize {
         var p = if (pos > self.len) self.len else pos;
@@ -92,45 +111,140 @@ const Editor = struct {
         return pos - self.lineStart(pos);
     }
 
-    fn insertByte(self: *Editor, byte: u8) void {
+    fn recordEdit(self: *Editor, edit: Edit) void {
+        if (self.undo_len < self.undo_stack.len) {
+            self.undo_stack[self.undo_len] = edit;
+            self.undo_len += 1;
+        } else {
+            var i: usize = 1;
+            while (i < self.undo_stack.len) : (i += 1) {
+                self.undo_stack[i - 1] = self.undo_stack[i];
+            }
+
+            self.undo_stack[self.undo_stack.len - 1] = edit;
+        }
+
+        self.redo_len = 0;
+    }
+
+    fn insertRaw(self: *Editor, pos: usize, byte: u8) void {
         if (self.len >= self.buffer.len) return;
 
         var i = self.len;
 
-        while (i > self.cursor) {
+        while (i > pos) {
             self.buffer[i] = self.buffer[i - 1];
             i -= 1;
         }
 
-        self.buffer[self.cursor] = byte;
-        self.cursor += 1;
+        self.buffer[pos] = byte;
         self.len += 1;
+    }
+
+    fn deleteRaw(self: *Editor, pos: usize) void {
+        if (pos >= self.len) return;
+
+        var i = pos;
+
+        while (i + 1 < self.len) : (i += 1) {
+            self.buffer[i] = self.buffer[i + 1];
+        }
+
+        self.len -= 1;
+    }
+
+    fn insertByte(self: *Editor, byte: u8) void {
+        if (self.len >= self.buffer.len) return;
+
+        const pos = self.cursor;
+
+        self.insertRaw(pos, byte);
+        self.cursor += 1;
+
+        self.recordEdit(.{
+            .kind = .insert,
+            .pos = pos,
+            .byte = byte,
+        });
     }
 
     fn deleteBeforeCursor(self: *Editor) void {
         if (self.cursor == 0) return;
 
+        const pos = self.cursor - 1;
+        const byte = self.buffer[pos];
+
+        self.deleteRaw(pos);
         self.cursor -= 1;
 
-        var i = self.cursor;
-
-        while (i + 1 < self.len) : (i += 1) {
-            self.buffer[i] = self.buffer[i + 1];
-        }
-
-        self.len -= 1;
+        self.recordEdit(.{
+            .kind = .delete,
+            .pos = pos,
+            .byte = byte,
+        });
     }
 
     fn deleteAtCursor(self: *Editor) void {
         if (self.cursor >= self.len) return;
 
-        var i = self.cursor;
+        const pos = self.cursor;
+        const byte = self.buffer[pos];
 
-        while (i + 1 < self.len) : (i += 1) {
-            self.buffer[i] = self.buffer[i + 1];
+        self.deleteRaw(pos);
+
+        self.recordEdit(.{
+            .kind = .delete,
+            .pos = pos,
+            .byte = byte,
+        });
+    }
+
+    fn undo(self: *Editor) void {
+        if (self.undo_len == 0) return;
+
+        self.undo_len -= 1;
+        const edit = self.undo_stack[self.undo_len];
+
+        switch (edit.kind) {
+            .insert => {
+                self.deleteRaw(edit.pos);
+                self.cursor = edit.pos;
+            },
+
+            .delete => {
+                self.insertRaw(edit.pos, edit.byte);
+                self.cursor = edit.pos + 1;
+            },
         }
 
-        self.len -= 1;
+        if (self.redo_len < self.redo_stack.len) {
+            self.redo_stack[self.redo_len] = edit;
+            self.redo_len += 1;
+        }
+    }
+
+    fn redo(self: *Editor) void {
+        if (self.redo_len == 0) return;
+
+        self.redo_len -= 1;
+        const edit = self.redo_stack[self.redo_len];
+
+        switch (edit.kind) {
+            .insert => {
+                self.insertRaw(edit.pos, edit.byte);
+                self.cursor = edit.pos + 1;
+            },
+
+            .delete => {
+                self.deleteRaw(edit.pos);
+                self.cursor = edit.pos;
+            },
+        }
+
+        if (self.undo_len < self.undo_stack.len) {
+            self.undo_stack[self.undo_len] = edit;
+            self.undo_len += 1;
+        }
     }
 
     fn moveLeft(self: *Editor) void {
@@ -142,6 +256,108 @@ const Editor = struct {
     fn moveRight(self: *Editor) void {
         if (self.cursor < self.len) {
             self.cursor += 1;
+        }
+    }
+
+    fn moveLineStart(self: *Editor) void {
+        self.cursor = self.lineStart(self.cursor);
+    }
+
+    fn moveLineEnd(self: *Editor) void {
+        self.cursor = self.lineEnd(self.cursor);
+    }
+
+    fn moveWordForward(self: *Editor) void {
+        if (self.cursor >= self.len) return;
+
+        var p = self.cursor;
+
+        while (p < self.len and
+            (self.buffer[p] == ' ' or self.buffer[p] == '\t'))
+        {
+            p += 1;
+        }
+
+        while (p < self.len and
+            self.buffer[p] != '\n' and
+            self.buffer[p] != ' ' and
+            self.buffer[p] != '\t')
+        {
+            p += 1;
+        }
+
+        while (p < self.len and
+            self.buffer[p] != '\n' and
+            (self.buffer[p] == ' ' or self.buffer[p] == '\t'))
+        {
+            p += 1;
+        }
+
+        self.cursor = p;
+    }
+
+    fn moveWordBack(self: *Editor) void {
+        if (self.cursor == 0) return;
+
+        var p = self.cursor - 1;
+
+        while (p > 0 and
+            (self.buffer[p] == ' ' or
+             self.buffer[p] == '\t' or
+             self.buffer[p] == '\n'))
+        {
+            p -= 1;
+        }
+
+        while (p > 0 and
+            self.buffer[p - 1] != ' ' and
+            self.buffer[p - 1] != '\t' and
+            self.buffer[p - 1] != '\n')
+        {
+            p -= 1;
+        }
+
+        self.cursor = p;
+    }
+
+    fn moveWordEnd(self: *Editor) void {
+        if (self.cursor >= self.len) return;
+
+        var p = self.cursor;
+
+        while (p < self.len and
+            (self.buffer[p] == ' ' or
+             self.buffer[p] == '\t' or
+             self.buffer[p] == '\n'))
+        {
+            p += 1;
+        }
+
+        if (p >= self.len) {
+            self.cursor = self.len;
+            return;
+        }
+
+        while (p + 1 < self.len and
+            self.buffer[p + 1] != ' ' and
+            self.buffer[p + 1] != '\t' and
+            self.buffer[p + 1] != '\n')
+        {
+            p += 1;
+        }
+
+        self.cursor = p;
+    }
+
+    fn moveFileStart(self: *Editor) void {
+        self.cursor = 0;
+    }
+
+    fn moveFileEnd(self: *Editor) void {
+        self.cursor = self.len;
+
+        if (self.cursor > 0 and self.buffer[self.cursor - 1] == '\n') {
+            self.cursor -= 1;
         }
     }
 
@@ -383,17 +599,15 @@ fn handleInput(editor: *Editor, io: anytype, byte: u8) void {
         .insert => {
             switch (byte) {
                 27 => {
-                    // Escape starts an ANSI escape sequence.
-                    // A plain Escape switches to command-ish normal behavior
-                    // later; for now it simply consumes the sequence.
                     const next = readByte() orelse {
+                        editor.mode = .normal;
                         return;
                     };
 
                     if (next == '[') {
                         handleArrow(editor, next);
                     } else {
-                        editor.mode = .command;
+                        editor.mode = .normal;
                     }
                 },
 
@@ -411,11 +625,121 @@ fn handleInput(editor: *Editor, io: anytype, byte: u8) void {
                 },
 
                 else => {
-                    // Ignore other C0 control characters.
                     if (byte >= 32) {
                         editor.insertByte(byte);
                     }
                 },
+            }
+        },
+
+        .normal => {
+            if (editor.pending_g) {
+                editor.pending_g = false;
+
+                if (byte == 'g') {
+                    editor.moveFileStart();
+                }
+
+                return;
+            }
+
+            switch (byte) {
+                27 => {
+                    const next = readByte() orelse return;
+
+                    if (next == '[') {
+                        handleArrow(editor, next);
+                    }
+                },
+
+                ':' => {
+                    editor.mode = .command;
+                    editor.command_len = 0;
+                },
+
+                'h' => editor.moveLeft(),
+                'j' => editor.moveDown(),
+                'k' => editor.moveUp(),
+                'l' => editor.moveRight(),
+
+                '0' => {
+                    editor.moveLineStart();
+                },
+
+                '$' => {
+                    editor.moveLineEnd();
+                },
+
+                'w' => {
+                    editor.moveWordForward();
+                },
+
+                'b' => {
+                    editor.moveWordBack();
+                },
+
+                'e' => {
+                    editor.moveWordEnd();
+                },
+
+                'g' => {
+                    editor.pending_g = true;
+                },
+
+                'G' => {
+                    editor.moveFileEnd();
+                },
+
+                'i' => {
+                    editor.mode = .insert;
+                },
+
+                'a' => {
+                    if (editor.cursor < editor.len) {
+                        editor.cursor += 1;
+                    }
+
+                    editor.mode = .insert;
+                },
+
+                'x' => {
+                    editor.deleteAtCursor();
+                },
+
+                'u' => {
+                    editor.undo();
+                },
+
+                18 => {
+                    editor.redo();
+                },
+
+                'o' => {
+                    const end = editor.lineEnd(editor.cursor);
+
+                    editor.cursor = end;
+
+                    if (editor.cursor < editor.len and
+                        editor.buffer[editor.cursor] == '\n')
+                    {
+                        editor.cursor += 1;
+                    }
+
+                    editor.insertByte('\n');
+                    editor.mode = .insert;
+                },
+
+                'O' => {
+                    const start = editor.lineStart(editor.cursor);
+
+                    editor.cursor = start;
+                    editor.insertByte('\n');
+                    editor.cursor = start;
+
+                    editor.mode = .insert;
+                },
+
+                else => {},
             }
         },
     }
