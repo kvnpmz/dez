@@ -117,6 +117,21 @@ pub fn render(editor: *const Editor) void {
             }
         }
 
+        const mode_str = switch (editor.mode) {
+            .normal => " NORMAL ",
+            .insert => " INSERT ",
+            .visual => " VISUAL ",
+            .visual_line => " VISUAL LINE ",
+            .command => " COMMAND ",
+        };
+
+        const status_text = std.fmt.bufPrint(
+            &out,
+            "\x1b[{};1H\x1b[7m{s}\x1b[0m Row: {}, Col: {}",
+            .{ size.rows, mode_str, cr, cc },
+        ) catch "";
+        terminal.writeAll(status_text);
+
         // Put cursor at calculated screen position.
         const pos = std.fmt.bufPrint(
             &out,

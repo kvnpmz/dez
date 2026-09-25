@@ -28,6 +28,7 @@ pub fn copyToWayland(io: std.Io, data: []const u8) void {
         child.stdin = null;
     }
 }
+
 pub fn pasteFromWayland(
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -46,4 +47,29 @@ pub fn pasteFromWayland(
 
     register.set(result.stdout);
     return true;
+}
+
+pub fn yank(editor: anytype, start: usize, finish: usize) void {
+    if (start >= finish) return;
+    const end = @min(finish, editor.document.len);
+    editor.register.set(editor.document.buffer[start..end]);
+    copyToWayland(editor.io, editor.register.get());
+}
+
+pub fn paste(editor: anytype, before: bool) void {
+    _ = pasteFromWayland(
+        editor.allocator,
+        editor.io,
+        &editor.register,
+    );
+    const data = editor.register.get();
+    if (data.len == 0) return;
+    var pos = editor.cursor.pos;
+    if (!before and pos < editor.document.len) pos += 1;
+    for (data) |byte| {
+        if (editor.document.len >= editor.document.buffer.len) break;
+        editor.document.insertRaw(pos, byte);
+        pos += 1;
+    }
+    editor.cursor.pos = if (pos > 0) pos - 1 else 0;
 }

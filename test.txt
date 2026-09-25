@@ -1,17 +1,48 @@
 jjkjjjjjjjji
 
 e
- $ ./zig-out/bin/zed test.txt
- $ ./zig-out/bin/
+ $ ./zig-out/bin/zed 
+ jjkjjjjjjjji
+$jjkjjjjjjjji
+ 
  $ ./z
- $ ./zig-out/bin/zed test.txtig-out/bin/zed test.txtzed test.txteja eeja eeja eeja hello
-keepieeeja eja aaaa  
+ jjkjjjjjjjji
+$ ./zig-out/bin/
+jjkjjjjjjjji
+keehelel
+
+jjkjjjjjjjji
+jjkjjjjjjjji
+jjkjjjjjjjji
+kjjkjjjjjjjji
+eehelel
+keehelel
+ $ ./zig-out/bin/
+ieeejaUpdated regiieeejaUpdated register.zig with paste and yank!
+ster.zig with paste and yank!
+ eja a eja aaaa  
+aaa  
 eeja 
- $ ./zig-out/bin/zed test.txt
-eeja eeja eeja eeja eeja eeja aaaa  
 aaaa  ehello
-hello
-hello
+Uaaaa  ehello
+aaaa  ehello
+aaaa  ehello
+pdateUpdated register.zig with paste and yank!
+d register.ziaaaa  ehello
+aaaa  ehello
+aaaa  ehello
+g with paste and yank!
+Added 'Y', 'D', and 'C' shortcuts to normal.zig!
+ $ ./zig-out/bin/zed test.txt
+
+aaaa  ehello
+aaaa  ehello
+aaaa  ehello
+Added 'Y', 'D', and 'C' shortcuts to normal.zig!
+aaaa  ehello
+
+hAdded 'Y', 'D', and 'C' shortcuts to normal.zig!
+ello
 hello
 
 eja aaaa  

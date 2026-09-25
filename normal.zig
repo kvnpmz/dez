@@ -3,29 +3,7 @@ const std = @import("std");
 const operator_mod = @import("operator.zig");
 const search_mod = @import("search.zig");
 const register_mod = @import("register.zig");
-fn yank(editor: anytype, start: usize, finish: usize) void {
-    if (start >= finish) return;
-    const end = @min(finish, editor.document.len);
-    editor.register.set(editor.document.buffer[start..end]);
-    register_mod.copyToWayland(editor.io, editor.register.get());
-}
-fn paste(editor: anytype, before: bool) void {
-    _ = register_mod.pasteFromWayland(
-        editor.allocator,
-        editor.io,
-        &editor.register,
-    );
-    const data = editor.register.get();
-    if (data.len == 0) return;
-    var pos = editor.cursor.pos;
-    if (!before and pos < editor.document.len) pos += 1;
-    for (data) |byte| {
-        if (editor.document.len >= editor.document.buffer.len) break;
-        editor.document.insertRaw(pos, byte);
-        pos += 1;
-    }
-    editor.cursor.pos = if (pos > 0) pos - 1 else 0;
-}
+
 pub fn handle(editor: anytype, byte: u8) void {
     if (operator_mod.handle(editor, byte)) return;
     if (editor.pending_g) {
@@ -39,8 +17,42 @@ pub fn handle(editor: anytype, byte: u8) void {
         'y' => {
             editor.pending_operator = .yank;
         },
-        'p' => paste(editor, false),
-        'P' => paste(editor, true),
+        'Y' => {
+            const start = cursor_mod.lineStart(&editor.document, editor.cursor.pos);
+            var finish = cursor_mod.lineEnd(&editor.document, editor.cursor.pos);
+            if (finish < editor.document.len and editor.document.buffer[finish] == '\n') {
+                finish += 1;
+            }
+            editor.register.set(editor.document.buffer[start..finish]);
+            register_mod.copyToWayland(editor.io, editor.register.get());
+        },
+        'D' => {
+            const start = editor.cursor.pos;
+            const finish = cursor_mod.lineEnd(&editor.document, start);
+            if (start < finish) {
+                var i = finish;
+                while (i > start) {
+                    i -= 1;
+                    editor.document.deleteRaw(i);
+                }
+                editor.cursor.pos = start;
+            }
+        },
+        'C' => {
+            const start = editor.cursor.pos;
+            const finish = cursor_mod.lineEnd(&editor.document, start);
+            if (start < finish) {
+                var i = finish;
+                while (i > start) {
+                    i -= 1;
+                    editor.document.deleteRaw(i);
+                }
+                editor.cursor.pos = start;
+            }
+            editor.mode = .insert;
+        },
+        'p' => register_mod.paste(editor, false),
+        'P' => register_mod.paste(editor, true),
         27 => {
             const term = @import("terminal.zig");
             const next = term.readByte() orelse return;
