@@ -1,14 +1,20 @@
 const std = @import("std");
 const Editor = @import("editor.zig").Editor;
 const terminal = @import("terminal.zig");
+const viewport = @import("viewport.zig");
 
 pub fn render(editor: *const Editor) void {
     const size = terminal.terminalSize();
 
-    // Home + clear screen.
     terminal.writeAll("\x1b[H\x1b[2J");
 
-    // Determine visual selection range if in visual mode
+    const top = viewport.start(
+        editor.document.buffer[0..editor.document.len],
+        editor.cursor.pos,
+        size.cols,
+        size.rows,
+    );
+
     var sel_start: usize = 0;
     var sel_end: usize = 0;
     var in_visual = false;
@@ -21,7 +27,6 @@ pub fn render(editor: *const Editor) void {
                 sel_start = @min(start, curr);
                 sel_end = @max(start, curr);
             } else {
-                // Visual line mode: select full lines
                 const line_s = @import("cursor.zig").lineStart(&editor.document, @min(start, curr));
                 const line_e = @import("cursor.zig").lineEnd(&editor.document, @max(start, curr));
                 sel_start = line_s;
@@ -30,10 +35,9 @@ pub fn render(editor: *const Editor) void {
         }
     }
 
-    // Only draw the portion that fits vertically.
     var row: usize = 1;
     var col: usize = 1;
-    var i: usize = 0;
+    var i: usize = top;
 
     var highlighting = false;
 
@@ -81,7 +85,6 @@ pub fn render(editor: *const Editor) void {
         terminal.writeAll("\x1b[0m");
     }
 
-    // Status / command line.
     var out: [512]u8 = undefined;
 
     if (editor.mode == .command) {
@@ -98,24 +101,14 @@ pub fn render(editor: *const Editor) void {
     } else {
         const cursor_pos = editor.cursor.pos;
 
-        var cr: usize = 1;
-        var cc: usize = 1;
-
-        var p: usize = 0;
-
-        while (p < cursor_pos) : (p += 1) {
-            if (editor.document.buffer[p] == '\n') {
-                cr += 1;
-                cc = 1;
-            } else {
-                cc += 1;
-
-                if (cc > size.cols) {
-                    cr += 1;
-                    cc = 1;
-                }
-            }
-        }
+        const cursor = viewport.cursorPosition(
+            editor.document.buffer[0..editor.document.len],
+            top,
+            cursor_pos,
+            size.cols,
+        );
+        const cr = cursor.row;
+        const cc = cursor.col;
 
         const mode_str = switch (editor.mode) {
             .normal => " NORMAL ",
@@ -132,7 +125,6 @@ pub fn render(editor: *const Editor) void {
         ) catch "";
         terminal.writeAll(status_text);
 
-        // Put cursor at calculated screen position.
         const pos = std.fmt.bufPrint(
             &out,
             "\x1b[{};{}H",

@@ -1,13 +1,15 @@
 pub fn handle(editor: anytype, byte: u8) void {
     switch (byte) {
         27 => {
-            const next = @import("terminal.zig").readByte() orelse {
+            const term = @import("terminal.zig");
+            const next = term.readByte() orelse {
                 editor.mode = .normal;
                 return;
             };
 
             if (next == '[') {
-                @import("input.zig").handleArrow(editor, next);
+                const arrow = term.readByte() orelse return;
+                @import("input.zig").handleArrow(editor, arrow);
             } else {
                 editor.mode = .normal;
             }

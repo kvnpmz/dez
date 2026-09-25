@@ -1,18 +1,12 @@
 const cursor_mod = @import("cursor.zig");
+const normal_motion = @import("normal_motion.zig");
 const std = @import("std");
 const operator_mod = @import("operator.zig");
-const search_mod = @import("search.zig");
 const register_mod = @import("register.zig");
 
 pub fn handle(editor: anytype, byte: u8) void {
     if (operator_mod.handle(editor, byte)) return;
-    if (editor.pending_g) {
-        editor.pending_g = false;
-        if (byte == 'g') {
-            editor.cursor.moveFileStart();
-        }
-        return;
-    }
+    if (normal_motion.handle(editor, byte)) return;
     switch (byte) {
         'y' => {
             editor.pending_operator = .yank;
@@ -57,7 +51,8 @@ pub fn handle(editor: anytype, byte: u8) void {
             const term = @import("terminal.zig");
             const next = term.readByte() orelse return;
             if (next == '[') {
-                @import("input.zig").handleArrow(editor, next);
+                const arrow = term.readByte() orelse return;
+                @import("input.zig").handleArrow(editor, arrow);
             }
         },
         ':' => {
@@ -69,33 +64,6 @@ pub fn handle(editor: anytype, byte: u8) void {
             editor.mode = .command;
             editor.search_active = true;
             editor.command_len = 0;
-        },
-        'n' => search_mod.next(editor, editor.search_forward),
-        'N' => search_mod.next(editor, !editor.search_forward),
-        'h' => editor.cursor.moveLeft(),
-        'j' => editor.cursor.moveDown(&editor.document),
-        'k' => editor.cursor.moveUp(&editor.document),
-        'l' => editor.cursor.moveRight(&editor.document),
-        '0' => {
-            editor.cursor.moveLineStart(&editor.document);
-        },
-        '$' => {
-            editor.cursor.moveLineEnd(&editor.document);
-        },
-        'w' => {
-            editor.cursor.moveWordForward(&editor.document);
-        },
-        'b' => {
-            editor.cursor.moveWordBack(&editor.document);
-        },
-        'e' => {
-            editor.cursor.moveWordEnd(&editor.document);
-        },
-        'g' => {
-            editor.pending_g = true;
-        },
-        'G' => {
-            editor.cursor.moveFileEnd(&editor.document);
         },
         'd' => {
             editor.pending_operator = .delete;

@@ -29,6 +29,7 @@ pub fn column(document: *const Document, pos: usize) usize {
 }
 
 pub const Cursor = struct {
+    count: usize = 0,
     pos: usize = 0,
 
     pub fn moveLeft(self: *Cursor) void {
