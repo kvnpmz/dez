@@ -4,6 +4,7 @@ const cursor_mod = @import("cursor.zig");
 const undo_mod = @import("undo.zig");
 const input_mod = @import("input.zig");
 const document_mod = @import("document.zig");
+const register_mod = @import("register.zig");
 
 pub const Mode = enum {
     normal,
@@ -13,6 +14,13 @@ pub const Mode = enum {
 
 pub const EditKind = undo_mod.EditKind;
 pub const Edit = undo_mod.Edit;
+
+pub const Operator = enum {
+    none,
+    delete,
+    change,
+    yank,
+};
 
 pub const Document = document_mod.Document;
 
@@ -24,6 +32,8 @@ pub const Editor = struct {
 
     command: [128]u8 = undefined,
     command_len: usize = 0,
+    search_active: bool = false,
+    search_forward: bool = true,
 
     should_quit: bool = false,
 
@@ -32,7 +42,12 @@ pub const Editor = struct {
 
     redo_stack: [256]Edit = undefined,
     redo_len: usize = 0,
+
     pending_g: bool = false,
+    pending_operator: Operator = .none,
+    register: register_mod.Register = .{},
+    io: std.Io,
+    allocator: std.mem.Allocator,
 
     pub fn recordEdit(self: *Editor, edit: Edit) void {
         undo_mod.recordEdit(self, edit);
@@ -90,6 +105,30 @@ pub const Editor = struct {
             .pos = pos,
             .byte = byte,
         });
+    }
+
+    pub fn deleteRange(self: *Editor, start: usize, end: usize) void {
+        if (start >= end) return;
+
+        const actual_end = @min(end, self.document.len);
+
+        var remaining = actual_end - start;
+
+        while (remaining > 0 and start < self.document.len) {
+            const byte = self.document.buffer[start];
+
+            self.document.deleteRaw(start);
+
+            self.recordEdit(.{
+                .kind = .delete,
+                .pos = start,
+                .byte = byte,
+            });
+
+            remaining -= 1;
+        }
+
+        self.cursor.pos = @min(start, self.document.len);
     }
 
     pub fn undo(self: *Editor) void {

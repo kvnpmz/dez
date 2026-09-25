@@ -10,7 +10,10 @@ pub fn main(init: std.process.Init) !void {
 
     defer term.writeAll("\x1b[2J\x1b[H");
 
-    var editor = editor_mod.Editor{};
+    var editor = editor_mod.Editor{
+        .io = init.io,
+        .allocator = init.gpa,
+    };
 
     const args =
         init.minimal.args.toSlice(

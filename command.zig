@@ -1,8 +1,10 @@
 const std = @import("std");
+const search_mod = @import("search.zig");
 
 pub fn handle(editor: anytype, io: anytype, byte: u8) void {
     if (byte == 27) {
-        editor.mode = .insert;
+        editor.mode = .normal;
+        editor.search_active = false;
         editor.command_len = 0;
         return;
     }
@@ -16,6 +18,14 @@ pub fn handle(editor: anytype, io: anytype, byte: u8) void {
 
     if (byte == '\r' or byte == '\n') {
         const command = editor.command[0..editor.command_len];
+
+        if (editor.search_active) {
+            editor.search_forward = true;
+            search_mod.run(editor);
+            editor.mode = .normal;
+            editor.search_active = false;
+            return;
+        }
 
         if (std.mem.eql(u8, command, "q")) {
             editor.should_quit = true;
