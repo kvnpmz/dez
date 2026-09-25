@@ -1,17 +1,19 @@
 jjkjjjjjjjji
 
-eeja eeja eeja eeja hello
-ekeepingeja 
-heeja eeja eeja ello
+e
+ $ ./zig-out/bin/zed test.txt
+ $ ./zig-out/bin/
+ $ ./z
+ $ ./zig-out/bin/zed test.txtig-out/bin/zed test.txtzed test.txteja eeja eeja eeja hello
+keepieeeja eja aaaa  
 eeja 
-keepingkeepingkeepini                                                                           geeja eeja eeja aaaa  aaaa  
-eeeja eja aaaa  
-eeja 
+ $ ./zig-out/bin/zed test.txt
 eeja eeja eeja eeja eeja eeja aaaa  
 aaaa  ehello
 hello
 hello
 hello
+
 eja aaaa  
 eeja aaaa  
 eeeja eeja eja aaaa  

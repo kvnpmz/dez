@@ -10,6 +10,8 @@ pub const Mode = enum {
     normal,
     insert,
     command,
+    visual,
+    visual_line,
 };
 
 pub const EditKind = undo_mod.EditKind;
@@ -25,10 +27,11 @@ pub const Operator = enum {
 pub const Document = document_mod.Document;
 
 pub const Editor = struct {
+    visual_start: ?usize = null,
     document: Document = .{},
     cursor: cursor_mod.Cursor = .{},
 
-    mode: Mode = .insert,
+    mode: Mode = .normal,
 
     command: [128]u8 = undefined,
     command_len: usize = 0,

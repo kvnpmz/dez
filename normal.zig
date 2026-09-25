@@ -91,6 +91,14 @@ pub fn handle(editor: anytype, byte: u8) void {
         'c' => {
             editor.pending_operator = .change;
         },
+        'v' => {
+            editor.mode = .visual;
+            editor.visual_start = editor.cursor.pos;
+        },
+        'V' => {
+            editor.mode = .visual_line;
+            editor.visual_start = editor.cursor.pos;
+        },
         'i' => {
             editor.mode = .insert;
         },

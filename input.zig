@@ -1,3 +1,4 @@
+const visual_mod = @import("visual.zig");
 const command_mod = @import("command.zig");
 const cursor_mod = @import("cursor.zig");
 const insert_mod = @import("insert.zig");
@@ -16,6 +17,10 @@ pub fn handleInput(editor: anytype, io: anytype, byte: u8) void {
 
         .normal => {
             normal_mod.handle(editor, byte);
+        },
+
+        .visual, .visual_line => {
+            visual_mod.handle(editor, byte);
         },
     }
 }
