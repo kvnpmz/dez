@@ -5,6 +5,7 @@ const undo_mod = @import("undo.zig");
 const input_mod = @import("input.zig");
 const document_mod = @import("document.zig");
 const register_mod = @import("register.zig");
+const buffer_mod = @import("buffer.zig");
 
 pub const Mode = enum {
     normal,
@@ -51,6 +52,7 @@ pub const Editor = struct {
     register: register_mod.Register = .{},
     io: std.Io,
     allocator: std.mem.Allocator,
+    buffers: buffer_mod.BufferList = buffer_mod.BufferList.init(),
 
     pub fn recordEdit(self: *Editor, edit: Edit) void {
         undo_mod.recordEdit(self, edit);
@@ -145,11 +147,30 @@ pub const Editor = struct {
     pub fn open(self: *Editor, io: anytype, path: []const u8) void {
         self.document.open(io, path);
         self.cursor.pos = 0;
+        self.buffers.store(self);
     }
 
     pub fn save(self: *Editor, io: anytype) void {
         self.document.save(io);
+        self.buffers.items[self.buffers.current].document = self.document;
     }
+
+    pub fn nextBuffer(self: *Editor) void {
+        self.buffers.nextBuffer(self);
+    }
+
+    pub fn previousBuffer(self: *Editor) void {
+        self.buffers.previousBuffer(self);
+    }
+
+    pub fn deleteBuffer(self: *Editor) void {
+        self.buffers.deleteBuffer(self);
+    }
+
+    pub fn newBuffer(self: *Editor) void {
+        self.buffers.newBuffer(self);
+    }
+
     pub fn render(self: *const Editor) void {
         render_mod.render(self);
     }

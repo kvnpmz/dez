@@ -29,6 +29,14 @@ pub fn handle(editor: anytype, io: anytype, byte: u8) void {
 
         if (std.mem.eql(u8, command, "q")) {
             editor.should_quit = true;
+        } else if (std.mem.eql(u8, command, "bn")) {
+            editor.nextBuffer();
+        } else if (std.mem.eql(u8, command, "bp")) {
+            editor.previousBuffer();
+        } else if (std.mem.eql(u8, command, "bd")) {
+            editor.deleteBuffer();
+        } else if (std.mem.eql(u8, command, "enew")) {
+            editor.newBuffer();
         } else if (std.mem.eql(u8, command, "w")) {
             editor.save(io);
             editor.mode = .insert;
