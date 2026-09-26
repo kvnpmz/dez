@@ -8,6 +8,7 @@ DONE
 ├── Search
 ├── Counts
 ├── Macros
+├── Multiple buffers
 └── Scrolling
 
 NEXT
@@ -16,7 +17,6 @@ NEXT
 ├── :s
 ├── :g / :v
 ├── :normal
-├── Multiple buffers
 ├── :hsplit
 ├── :vsplit
 ├── ZigLua
